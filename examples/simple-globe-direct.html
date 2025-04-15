@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Simple Globe View Example (Direct Method)</title>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel='stylesheet' href='../dist/maplibre-gl.css' />
+    <script src='../dist/maplibre-gl-dev.js'></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+        #map { background: hsl(0, 0%, 2%); } /* Dark background for better globe effect */
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: {
+            version: 8,
+            sources: {
+                'satellite': {
+                    type: 'raster',
+                    tiles: [
+                        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                    ],
+                    tileSize: 256,
+                    attribution: 'Imagery © Esri'
+                }
+            },
+            layers: [{
+                id: 'satellite',
+                type: 'raster',
+                source: 'satellite',
+                minzoom: 0,
+                maxzoom: 22
+            }]
+        },
+        center: [0, 0],
+        zoom: 1.5,
+        pitch: 60,
+        bearing: 0,
+        renderWorldCopies: true,
+        antialias: true,
+        projection: 'globe' // Set globe projection directly here
+    });
+
+    // Add navigation controls
+    map.addControl(new maplibregl.NavigationControl());
+    
+    // Add a globe control to toggle between globe and mercator views
+    map.addControl(new maplibregl.GlobeControl());
+</script>
+</body>
+</html> 

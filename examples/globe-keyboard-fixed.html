@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Locate the user</title>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel='stylesheet' href='../dist/maplibre-gl.css' />
+    <script src='../dist/maplibre-gl.js'></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+
+        /* Figma-style crosshair */
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 15px;
+            height: 15px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .crosshair-h, .crosshair-v {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.8);
+        }
+
+        .crosshair-h {
+            width: 15px;
+            height: 1.5px;
+            top: 6.75px;
+            left: 0;
+        }
+
+        .crosshair-v {
+            width: 1.5px;
+            height: 15px;
+            top: 0;
+            left: 6.75px;
+        }
+
+        /* Zoom limit indicator */
+        .zoom-limit {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            font-size: 7.5px;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 1px 3px;
+            border-radius: 2px;
+            font-family: sans-serif;
+            display: none;
+            pointer-events: none;
+            z-index: 1000;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<div class="crosshair" id="crosshair">
+    <div class="crosshair-h"></div>
+    <div class="crosshair-v"></div>
+    <div class="zoom-limit" id="zoomLimit">zoom-lmt</div>
+</div>
+<script>
+    // Define a more conservative max zoom level
+    const MAX_ZOOM = 16;
+    const SAFE_MAX_ZOOM = MAX_ZOOM - 0.1; // Slightly lower to prevent edge cases
+
+    const map = new maplibregl.Map({
+        container: 'map', // container id
+        style: {
+            version: 8,
+            sources: {
+                'satellite': {
+                    type: 'raster',
+                    tiles: [
+                        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                    ],
+                    tileSize: 256,
+                    attribution: 'Imagery © Esri',
+                    maxzoom: MAX_ZOOM // Limit source max zoom
+                }
+            },
+            layers: [{
+                id: 'satellite',
+                type: 'raster',
+                source: 'satellite',
+                minzoom: 0,
+                maxzoom: MAX_ZOOM // Limit layer max zoom
+            }]
+        },
+        center: [-96, 37.8], // starting position
+        zoom: 3, // starting zoom
+        maxZoom: SAFE_MAX_ZOOM, // Slightly lower than MAX_ZOOM to prevent edge cases
+        // projection: 'globe' // Removed for flat map
+    });
+
+    // Add controls
+    map.addControl(new maplibregl.NavigationControl(), 'top-left');
+    map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
+
+    // Get DOM elements
+    const zoomLimitEl = document.getElementById('zoomLimit');
+
+    // Show/hide zoom limit indicator
+    function showZoomLimit(show) {
+        zoomLimitEl.style.display = show ? 'block' : 'none';
+    }
+
+    // Create the geolocate control with optimized settings
+    const geolocateControl = new maplibregl.GeolocateControl({
+        positionOptions: {
+            enableHighAccuracy: true,
+            timeout: 6000  // 6 seconds timeout (default can be 30+ seconds)
+        },
+        trackUserLocation: true,
+        showUserHeading: true,
+        fitBoundsOptions: {
+            maxZoom: MAX_ZOOM - 2 // Set lower for geolocation to prevent overzoom
+        }
+    });
+
+    // Add the control to the map
+    map.addControl(geolocateControl);
+
+    // Handle zoom events and prevent going over max zoom
+    map.on('zoomstart', () => {
+        // Hide the zoom limit indicator when starting a zoom action
+        showZoomLimit(false);
+    });
+
+    map.on('zoom', () => {
+        const currentZoom = map.getZoom();
+        if (currentZoom >= SAFE_MAX_ZOOM) {
+            // Immediately set zoom back to safe level
+            map.setZoom(SAFE_MAX_ZOOM);
+            // Show zoom limit indicator
+            showZoomLimit(true);
+        }
+    });
+
+    // Handle tile loading errors
+    map.on('error', (e) => {
+        console.error('Map error:', e);
+        if (e.error && e.error.status === 404) {
+            // This could be a tile not found error
+            const currentZoom = map.getZoom();
+            if (currentZoom > MAX_ZOOM - 1) {
+                // Set zoom back to a safer level
+                map.setZoom(MAX_ZOOM - 1);
+                showZoomLimit(true);
+            }
+        }
+    });
+
+    // Automatically trigger location finding when the map is loaded
+    map.on('load', () => {
+        // Delay to ensure map is fully rendered
+        setTimeout(() => {
+            geolocateControl.trigger();
+        }, 1000);
+    });
+</script>
+</body>
+</html>

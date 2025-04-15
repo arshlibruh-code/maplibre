@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>MapLibre GL JS with Custom Crosshair</title>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel='stylesheet' href='../dist/maplibre-gl.css' />
+    <script src='../dist/maplibre-gl-dev.js'></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+
+        /* Fixed crosshair in the center of the map */
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 999;
+            pointer-events: none; /* Allows clicks to pass through to the map */
+            width: 7px;
+            height: 7px;
+        }
+
+        /* Horizontal line */
+        .crosshair:before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 7px;
+            height: 0.6px;
+            background-color: white;
+            box-shadow: 0 0 0.2px black, 0 0 0.2px black;
+            transform: translateY(-50%);
+        }
+
+        /* Vertical line */
+        .crosshair:after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 0.6px;
+            height: 7px;
+            background-color: white;
+            box-shadow: 0 0 0.2px black, 0 0 0.2px black;
+            transform: translateX(-50%);
+        }
+
+        /* Zoom limit indicator */
+        .zoom-lmt {
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-top: 2px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            font-size: 10px;
+            padding: 2px;
+            border-radius: 2px;
+            white-space: nowrap;
+            font-family: Arial, sans-serif;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+
+<!-- Simple crosshair centered on the map -->
+<div class="crosshair">
+    <div class="zoom-lmt">zoom-lmt</div>
+</div>
+
+<script>
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://api.maptiler.com/maps/streets/style.json?key=get_your_own_OpIi9ZULNHzrESv6T2vL',
+        center: [-74.5, 40],
+        zoom: 9
+    });
+
+    map.on('load', function() {
+        console.log('Map loaded with custom crosshair');
+
+        // Update zoom limit indicator with current zoom level
+        updateZoomIndicator();
+    });
+
+    // Update zoom indicator when zoom changes
+    map.on('zoom', updateZoomIndicator);
+
+    function updateZoomIndicator() {
+        const zoomLmt = document.querySelector('.zoom-lmt');
+        const currentZoom = map.getZoom().toFixed(1);
+        zoomLmt.textContent = `zoom: ${currentZoom}`;
+    }
+</script>
+</body>
+</html>

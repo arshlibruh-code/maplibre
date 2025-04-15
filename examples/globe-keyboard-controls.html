@@ -1,0 +1,1126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>MapLibre GL JS 3D Globe with Keyboard Controls</title>
+    <meta property="og:description" content="Interactive 3D globe visualization with terrain, atmosphere and keyboard navigation using MapLibre GL JS." />
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel='stylesheet' href='../dist/maplibre-gl.css' />
+    <script src='../dist/maplibre-gl-dev.js'></script>
+    <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+
+        /* Background overlay when panel is visible */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.3);
+            z-index: 5;
+            display: none;
+        }
+
+        /* Toggle button to open control panel */
+        .panel-button {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background-color: rgba(22, 22, 22, 0.85);
+            color: #e0e0e0;
+            border: 1px solid rgba(60, 60, 60, 0.6);
+            border-radius: 4px;
+            padding: 8px 12px;
+            font-size: 10px;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            cursor: pointer;
+            z-index: 4;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-button svg {
+            width: 12px;
+            height: 12px;
+            fill: #e0e0e0;
+        }
+
+        .panel-button:hover {
+            background-color: rgba(40, 40, 40, 0.95);
+            border-color: rgba(80, 80, 80, 0.9);
+        }
+
+        /* Keyboard shortcuts panel */
+        .keyboard-shortcuts {
+            position: absolute;
+            left: 15px;
+            bottom: 15px;
+            background-color: rgba(30, 30, 30, 0.85);
+            border-radius: 4px;
+            padding: 10px 15px;
+            color: white;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            z-index: 5;
+            font-size: 12px;
+            transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+            transform-origin: bottom left;
+        }
+
+        .keyboard-shortcuts h3 {
+            margin: 0 0 10px 0;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #aaaaaa;
+        }
+
+        .keyboard-shortcuts ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .keyboard-shortcuts li {
+            margin-bottom: 6px;
+            display: flex;
+        }
+
+        .key {
+            background-color: #333;
+            color: #ddd;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-right: 6px;
+            font-family: monospace;
+            border: 1px solid #444;
+            min-width: 18px;
+            text-align: center;
+        }
+
+        .key-action {
+            color: #bbb;
+            flex-grow: 1;
+        }
+
+        /* DaVinci Resolve style control panel */
+        .control-panel {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 240px;
+            background-color: rgba(22, 22, 22, 0.92);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            color: #e0e0e0;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            font-size: 11px;
+            z-index: 10;
+            overflow: hidden;
+            border: 1px solid rgba(60, 60, 60, 0.5);
+            user-select: none;
+            max-height: calc(100vh - 30px);
+            overflow-y: auto;
+            transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .control-header {
+            background-color: rgba(40, 40, 40, 0.9);
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(60, 60, 60, 0.6);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: move;
+            user-select: none;
+            touch-action: none; /* Prevent touch scrolling on the header */
+        }
+
+        /* Drag handle indicator */
+        .drag-handle-indicator {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            margin-right: 8px;
+        }
+
+        .drag-handle-indicator span {
+            width: 15px;
+            height: 2px;
+            background-color: rgba(170, 170, 170, 0.6);
+            border-radius: 1px;
+        }
+
+        .control-header h3 {
+            margin: 0;
+            font-size: 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            color: #bbb;
+        }
+
+        /* Header title container with icon */
+        .header-title-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-grow: 1;
+        }
+
+        .header-icon {
+            width: 16px;
+            height: 16px;
+            fill: #aaa;
+        }
+
+        /* Panel toggle button (chevron) */
+        .panel-toggle {
+            font-size: 14px;
+            cursor: pointer;
+            color: #aaa;
+            transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), color 0.3s ease;
+        }
+
+        .panel-toggle:hover {
+            color: #fff;
+        }
+
+        .control-content {
+            padding: 12px;
+            overflow: hidden;
+            transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+            max-height: 600px; /* Maximum height when expanded */
+        }
+
+        .collapsed {
+            max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+        }
+
+        .control-group h4 {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #999;
+            margin: 0 0 8px 0;
+            font-weight: 600;
+            border-bottom: 1px solid rgba(60, 60, 60, 0.5);
+            padding-bottom: 4px;
+        }
+
+        .slider-row {
+            display: grid;
+            grid-template-columns: 30% 50% 20%;
+            align-items: center;
+            margin-bottom: 8px;
+            position: relative;
+        }
+
+        .slider-label {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #aaa;
+        }
+
+        .slider-track {
+            position: relative;
+            width: 100%;
+            height: 4px;
+        }
+
+        /* Markers for 10% and 50% values */
+        .default-marker {
+            position: absolute;
+            width: 2px;
+            height: 8px;
+            background-color: rgba(255, 165, 0, 0.7);
+            top: -2px;
+            z-index: 1;
+        }
+
+        .midpoint-marker {
+            position: absolute;
+            width: 2px;
+            height: 8px;
+            background-color: rgba(100, 170, 255, 0.7);
+            top: -2px;
+            z-index: 1;
+            left: 50%;
+        }
+
+        /* Slider fill to show value */
+        .slider-fill {
+            position: absolute;
+            height: 4px;
+            background-color: rgba(65, 137, 199, 0.7);
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            border-radius: 2px;
+            z-index: 1;
+        }
+
+        .slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            background-color: rgba(60, 60, 60, 0.8);
+            border-radius: 2px;
+            outline: none;
+            position: relative;
+            margin: 0;
+            z-index: 2;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 10px;
+            height: 10px;
+            background-color: #e0e0e0;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+            position: relative;
+            z-index: 2;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+        }
+
+        .slider::-webkit-slider-thumb:hover {
+            background-color: #ffffff;
+            transform: scale(1.2);
+        }
+
+        .slider-value {
+            text-align: center;
+            font-size: 10px;
+            color: #bbb;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .toggle-label {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #aaa;
+        }
+
+        .toggle {
+            position: relative;
+            width: 32px;
+            height: 16px;
+        }
+
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-track {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(60, 60, 60, 0.8);
+            border-radius: 16px;
+            transition: background-color 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .toggle-track:before {
+            position: absolute;
+            content: "";
+            height: 12px;
+            width: 12px;
+            left: 2px;
+            bottom: 2px;
+            background-color: #999;
+            border-radius: 50%;
+            transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .toggle input:checked + .toggle-track {
+            background-color: rgba(65, 137, 199, 0.7);
+        }
+
+        .toggle input:checked + .toggle-track:before {
+            transform: translateX(16px);
+            background-color: #fff;
+        }
+
+        .reset-button {
+            width: 100%;
+            background-color: rgba(40, 40, 40, 0.9);
+            border: 1px solid rgba(70, 70, 70, 0.6);
+            color: #ddd;
+            padding: 6px 10px;
+            border-radius: 3px;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+            margin-top: 4px;
+        }
+
+        .reset-button:hover {
+            background-color: rgba(50, 50, 50, 0.9);
+            color: #fff;
+        }
+
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        .sidebar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 300px;
+            margin: 20px;
+            padding: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+        .shortcuts {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .slider-container {
+            margin-bottom: 15px;
+        }
+        .debug-log {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 300px;
+            height: 200px;
+            overflow-y: auto;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .debug-log div {
+            margin-bottom: 4px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding-bottom: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<script src="https://cdn.jsdelivr.net/npm/@watergis/maplibre-gl-terradraw@1.0.1/dist/maplibre-gl-terradraw.umd.js"></script>
+<link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/@watergis/maplibre-gl-terradraw@1.0.1/dist/maplibre-gl-terradraw.css"
+/>
+<div id="map"></div>
+
+<!-- Toggle button for control panel -->
+<!-- Panel button removed as requested -->
+
+<!-- DaVinci Style Control Panel -->
+<div class="control-panel" id="control-panel">
+    <div class="control-header">
+        <div class="header-title-container">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="header-icon"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
+            <h3>GLOBE NAVIGATION</h3>
+        </div>
+        <span class="panel-toggle">&#9662;</span>
+    </div>
+    <div class="control-content">
+        <div class="control-group">
+            <h4>NAVIGATION SPEED</h4>
+
+            <div class="slider-row">
+                <div class="slider-label">PAN</div>
+                <div class="slider-track">
+                    <input type="range" min="1" max="10" value="5" class="slider" id="pan-speed">
+                </div>
+                <div class="slider-value" id="pan-speed-value">5.0</div>
+            </div>
+
+            <div class="slider-row">
+                <div class="slider-label">ROTATE</div>
+                <div class="slider-track">
+                    <input type="range" min="1" max="10" value="5" class="slider" id="rotation-speed">
+                </div>
+                <div class="slider-value" id="rotation-speed-value">5.0</div>
+            </div>
+
+            <div class="slider-row">
+                <div class="slider-label">PITCH</div>
+                <div class="slider-track">
+                    <input type="range" min="1" max="10" value="5" class="slider" id="pitch-speed">
+                </div>
+                <div class="slider-value" id="pitch-speed-value">5.0</div>
+            </div>
+
+            <div class="slider-row">
+                <div class="slider-label">ZOOM</div>
+                <div class="slider-track">
+                    <input type="range" min="1" max="10" value="5" class="slider" id="zoom-speed">
+                </div>
+                <div class="slider-value" id="zoom-speed-value">5.0</div>
+            </div>
+        </div>
+
+        <button class="reset-button" id="reset-params">RESET TO DEFAULTS</button>
+    </div>
+</div>
+
+<!-- Keyboard Shortcuts -->
+<div id="keyboard-shortcuts" class="keyboard-shortcuts">
+    <h3>Globe Keyboard Controls</h3>
+    <ul>
+        <li><span class="key">W</span><span class="key">S</span><span class="key">A</span><span class="key">D</span> <span class="key-action">Pan Globe</span></li>
+        <li><span class="key">Q</span><span class="key">E</span> <span class="key-action">Rotate Globe</span></li>
+        <li><span class="key">R</span><span class="key">F</span> <span class="key-action">Adjust Pitch</span></li>
+        <li><span class="key">Z</span><span class="key">X</span> <span class="key-action">Zoom In/Out</span></li>
+        <li><span class="key">Space</span> <span class="key-action">Reset Globe View</span></li>
+    </ul>
+    <h3>Mouse Controls</h3>
+    <ul>
+        <li><span class="key-action">Left-click + Drag: Pan</span></li>
+        <li><span class="key-action">Right-click + Drag: Rotate</span></li>
+        <li><span class="key-action">Scroll: Zoom in/out</span></li>
+        <li><span class="key-action">Shift + Drag: Pitch</span></li>
+    </ul>
+</div>
+
+<div class="debug-log" id="debugLog"></div>
+
+<script>
+    // Function to log to debug console
+    function log(message) {
+        console.log(message);
+        const debugLog = document.getElementById('debugLog');
+        if (debugLog) {
+            const logEntry = document.createElement('div');
+            logEntry.textContent = message;
+            debugLog.insertBefore(logEntry, debugLog.firstChild);
+
+            // Limit number of entries
+            if (debugLog.children.length > 20) {
+                debugLog.removeChild(debugLog.lastChild);
+            }
+        }
+    }
+
+    const map = new maplibregl.Map({
+        container: 'map', // container id
+        style: {
+            version: 8,
+            sources: {
+                'satellite': {
+                    type: 'raster',
+                    tiles: [
+                        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                    ],
+                    tileSize: 256,
+                    attribution: 'Imagery © Esri'
+                }
+            },
+            layers: [{
+                id: 'satellite',
+                type: 'raster',
+                source: 'satellite',
+                minzoom: 0,
+                maxzoom: 22
+            }]
+        },
+        center: [0, 0],
+        zoom: 1.5,
+        pitch: 60,
+        bearing: 0,
+        renderWorldCopies: true,
+        antialias: true,
+        keyboard: true,  // Make sure keyboard control is explicitly enabled
+        projection: 'globe'  // Set globe projection during initialization
+    });
+
+    // Verify keyboard handler is properly attached
+    if (!map.keyboard) {
+        console.error("Keyboard handler is not available - it should be created during Map initialization");
+        // Try to recreate it manually if missing
+        try {
+            const KeyboardHandler = maplibregl.KeyboardHandler;
+            if (KeyboardHandler) {
+                map.keyboard = new KeyboardHandler(map);
+                console.log("Manually created keyboard handler");
+            }
+        } catch (e) {
+            console.error("Could not manually create keyboard handler:", e);
+        }
+    } else {
+        console.log("Keyboard handler is available:", map.keyboard);
+    }
+
+    // Default values for movement parameters
+    const defaultParams = {
+        panSpeed: 5.0, // 1-10 slider value
+        rotationSpeed: 5.0, // 1-10 slider value
+        pitchSpeed: 5.0, // 1-10 slider value
+        zoomSpeed: 5.0 // 1-10 slider value
+    };
+
+    // Check if keyboard handler is attached
+    console.log('Map created, checking handlers:', {
+        keyboardHandler: map.keyboard ? 'Available' : 'Missing',
+        allHandlers: Object.keys(map)
+    });
+
+    // Movement params for keyboard controls
+    const movementParams = {
+        panSpeed: defaultParams.panSpeed,
+        rotationSpeed: defaultParams.rotationSpeed,
+        pitchSpeed: defaultParams.pitchSpeed,
+        zoomSpeed: defaultParams.zoomSpeed,
+        keysPressed: {}
+    };
+
+    // Connect UI controls to movement params
+    function setupControlPanel() {
+        // Get control panel elements
+        const controlPanel = document.getElementById('control-panel');
+        const panelHeader = controlPanel.querySelector('.control-header');
+        const panelToggle = panelHeader.querySelector('.panel-toggle');
+        const panelContent = controlPanel.querySelector('.control-content');
+
+        // Make the panel draggable
+        makeDraggable(controlPanel, panelHeader);
+
+        // Make the panel collapsible
+        panelToggle.addEventListener('click', () => {
+            panelContent.classList.toggle('collapsed');
+            if (panelContent.classList.contains('collapsed')) {
+                panelToggle.style.transform = 'rotate(180deg)';
+            } else {
+                panelToggle.style.transform = 'rotate(0deg)';
+            }
+        });
+
+        // Get sliders and values
+        const panSpeedSlider = document.getElementById('pan-speed');
+        const rotationSpeedSlider = document.getElementById('rotation-speed');
+        const pitchSpeedSlider = document.getElementById('pitch-speed');
+        const zoomSpeedSlider = document.getElementById('zoom-speed');
+
+        // Get value display elements
+        const panSpeedValue = document.getElementById('pan-speed-value');
+        const rotationSpeedValue = document.getElementById('rotation-speed-value');
+        const pitchSpeedValue = document.getElementById('pitch-speed-value');
+        const zoomSpeedValue = document.getElementById('zoom-speed-value');
+
+        // Update parameters when sliders change
+        panSpeedSlider.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            movementParams.panSpeed = value;
+            panSpeedValue.textContent = value.toFixed(1);
+
+            // Update the keyboard handler
+            map.keyboard.setPanSpeed(value);
+        });
+
+        rotationSpeedSlider.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            movementParams.rotationSpeed = value;
+            rotationSpeedValue.textContent = value.toFixed(1);
+
+            // Update the keyboard handler
+            map.keyboard.setRotationSpeed(value);
+        });
+
+        pitchSpeedSlider.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            movementParams.pitchSpeed = value;
+            pitchSpeedValue.textContent = value.toFixed(1);
+
+            // Update the keyboard handler
+            map.keyboard.setPitchSpeed(value);
+        });
+
+        zoomSpeedSlider.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            movementParams.zoomSpeed = value;
+            zoomSpeedValue.textContent = value.toFixed(1);
+
+            // Update the keyboard handler
+            map.keyboard.setZoomSpeed(value);
+        });
+
+        // Reset button
+        const resetButton = document.getElementById('reset-params');
+
+        resetButton.addEventListener('click', () => {
+            // Reset slider values
+            panSpeedSlider.value = defaultParams.panSpeed;
+            rotationSpeedSlider.value = defaultParams.rotationSpeed;
+            pitchSpeedSlider.value = defaultParams.pitchSpeed;
+            zoomSpeedSlider.value = defaultParams.zoomSpeed;
+
+            // Update movement params
+            movementParams.panSpeed = defaultParams.panSpeed;
+            movementParams.rotationSpeed = defaultParams.rotationSpeed;
+            movementParams.pitchSpeed = defaultParams.pitchSpeed;
+            movementParams.zoomSpeed = defaultParams.zoomSpeed;
+
+            // Update keyboard handler
+            map.keyboard.setPanSpeed(defaultParams.panSpeed);
+            map.keyboard.setRotationSpeed(defaultParams.rotationSpeed);
+            map.keyboard.setPitchSpeed(defaultParams.pitchSpeed);
+            map.keyboard.setZoomSpeed(defaultParams.zoomSpeed);
+
+            // Update display values
+            panSpeedValue.textContent = movementParams.panSpeed.toFixed(1);
+            rotationSpeedValue.textContent = movementParams.rotationSpeed.toFixed(1);
+            pitchSpeedValue.textContent = movementParams.pitchSpeed.toFixed(1);
+            zoomSpeedValue.textContent = movementParams.zoomSpeed.toFixed(1);
+        });
+
+        // Function to add slider markers for better visual feedback
+        function addSliderMarkers() {
+            const sliderTracks = document.querySelectorAll('.slider-track');
+
+            sliderTracks.forEach(track => {
+                const slider = track.querySelector('.slider');
+                const max = parseInt(slider.max);
+
+                // Create a marker for 50%
+                const midpointMarker = document.createElement('div');
+                midpointMarker.className = 'midpoint-marker';
+
+                // Create fill element
+                const sliderFill = document.createElement('div');
+                sliderFill.className = 'slider-fill';
+
+                // Set initial fill width
+                const value = slider.value;
+                const percentage = (value / max) * 100;
+                sliderFill.style.width = `${percentage}%`;
+
+                // Update fill when slider moves
+                slider.addEventListener('input', () => {
+                    const value = slider.value;
+                    const percentage = (value / max) * 100;
+                    sliderFill.style.width = `${percentage}%`;
+                });
+
+                track.appendChild(sliderFill);
+                track.appendChild(midpointMarker);
+            });
+        }
+
+        // Add markers to sliders
+        addSliderMarkers();
+    }
+
+    // Setup keyboard controls
+    function setupKeyboardControls() {
+        log('Setting up keyboard controls');
+
+        // Enable the keyboard handler
+        if (!map.keyboard) {
+            log('ERROR: Keyboard handler not available');
+            return;
+        }
+
+        map.keyboard.enable();
+        map.keyboard.enableRotation();
+
+        // Set initial speeds from movement params
+        map.keyboard.setPanSpeed(movementParams.panSpeed);
+        map.keyboard.setRotationSpeed(movementParams.rotationSpeed);
+        map.keyboard.setPitchSpeed(movementParams.pitchSpeed);
+        map.keyboard.setZoomSpeed(movementParams.zoomSpeed);
+
+        // Track active keys
+        const activeKeys = new Set();
+        let animationFrameId = null;
+
+        // easeOutQuint function for smooth animation
+        function easeOutQuint(t) {
+            return 1 - Math.pow(1 - t, 5);
+        }
+
+        // Handle continuous movement with easeOutQuint
+        function handleContinuousMovement() {
+            if (activeKeys.size === 0) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+                return;
+            }
+
+            // Scale movement speeds based on slider values
+            const panMultiplier = movementParams.panSpeed / 5.0;
+            const rotateMultiplier = movementParams.rotationSpeed / 5.0;
+            const pitchMultiplier = movementParams.pitchSpeed / 5.0;
+            const zoomMultiplier = movementParams.zoomSpeed / 5.0;
+
+            // Base movement amounts
+            const panAmount = 5 * panMultiplier;
+            const rotateAmount = 3 * rotateMultiplier;
+            const pitchAmount = 3 * pitchMultiplier;
+            const zoomAmount = 0.15 * zoomMultiplier;
+
+            // Apply movements based on active keys with easeOutQuint
+            if (activeKeys.has('w')) map.panBy([0, -panAmount], { duration: 300, easing: easeOutQuint });
+            if (activeKeys.has('s')) map.panBy([0, panAmount], { duration: 300, easing: easeOutQuint });
+            if (activeKeys.has('a')) map.panBy([-panAmount, 0], { duration: 300, easing: easeOutQuint });
+            if (activeKeys.has('d')) map.panBy([panAmount, 0], { duration: 300, easing: easeOutQuint });
+
+            if (activeKeys.has('q')) {
+                map.easeTo({
+                    bearing: map.getBearing() - rotateAmount,
+                    duration: 300,
+                    easing: easeOutQuint
+                });
+            }
+
+            if (activeKeys.has('e')) {
+                map.easeTo({
+                    bearing: map.getBearing() + rotateAmount,
+                    duration: 300,
+                    easing: easeOutQuint
+                });
+            }
+
+            if (activeKeys.has('r')) {
+                map.easeTo({
+                    pitch: Math.min(map.getPitch() + pitchAmount, 85),
+                    duration: 300,
+                    easing: easeOutQuint
+                });
+            }
+
+            if (activeKeys.has('f')) {
+                map.easeTo({
+                    pitch: Math.max(map.getPitch() - pitchAmount, 0),
+                    duration: 300,
+                    easing: easeOutQuint
+                });
+            }
+
+            if (activeKeys.has('z')) {
+                map.easeTo({
+                    zoom: map.getZoom() + zoomAmount,
+                    duration: 300,
+                    easing: easeOutQuint
+                });
+            }
+
+            if (activeKeys.has('x')) {
+                map.easeTo({
+                    zoom: map.getZoom() - zoomAmount,
+                    duration: 300,
+                    easing: easeOutQuint
+                });
+            }
+
+            // Continue the animation loop with a slight delay to prevent animations from stacking too much
+            setTimeout(() => {
+                animationFrameId = requestAnimationFrame(handleContinuousMovement);
+            }, 150);
+        }
+
+        // Keydown handler
+        window.addEventListener('keydown', function(e) {
+            if (!map.keyboard || !map.keyboard.isEnabled()) return;
+
+            const key = e.key.toLowerCase();
+            if (['w', 'a', 's', 'd', 'q', 'e', 'r', 'f', 'z', 'x'].includes(key)) {
+                e.preventDefault(); // Prevent default behaviors like page scrolling
+
+                if (!activeKeys.has(key)) {
+                    activeKeys.add(key);
+                    log(`Key pressed: ${key}`);
+
+                    // Start movement with easeOutQuint
+                    if (animationFrameId === null) {
+                        animationFrameId = requestAnimationFrame(handleContinuousMovement);
+                    }
+                }
+            }
+
+            // Space key to reset view
+            if (e.key === ' ') {
+                e.preventDefault();
+                resetMapView();
+            }
+        });
+
+        // Keyup handler
+        window.addEventListener('keyup', function(e) {
+            const key = e.key.toLowerCase();
+            if (['w', 'a', 's', 'd', 'q', 'e', 'r', 'f', 'z', 'x'].includes(key)) {
+                activeKeys.delete(key);
+                log(`Key released: ${key}`);
+
+                // Stop animation immediately if no keys are pressed
+                if (activeKeys.size === 0 && animationFrameId !== null) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+            }
+        });
+
+        // Stop all movement when window loses focus
+        window.addEventListener('blur', function() {
+            activeKeys.clear();
+            if (animationFrameId !== null) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+        });
+
+        log('Keyboard controls enabled with easeOutQuint movement');
+    }
+
+    // Reset map view with easeOutQuint animation
+    function resetMapView() {
+        log('Resetting map view');
+
+        // easeOutQuint function for smooth animation
+        function easeOutQuint(t) {
+            return 1 - Math.pow(1 - t, 5);
+        }
+
+        map.flyTo({
+            center: [0, 0],
+            zoom: 1,
+            pitch: 45,
+            bearing: 0,
+            duration: 1500,
+            easing: easeOutQuint
+        });
+    }
+
+    // Set the globe projection after map initialization
+    map.on('load', () => {
+        try {
+            // Reset to default view to ensure proper globe visualization
+            resetMapView();
+
+            // Setup keyboard controls
+            setupKeyboardControls();
+
+            // Setup mouse controls
+            setupMouseControls();
+
+            // Setup control panel
+            setupControlPanel();
+        } catch (e) {
+            console.error("Error setting up controls:", e);
+        }
+    });
+
+    // Setup mouse controls for easier navigation
+    function setupMouseControls() {
+        // Add navigation control (zoom buttons)
+        map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+        // Add globe control to toggle between globe and mercator
+        map.addControl(new maplibregl.GlobeControl(), 'top-right');
+
+        // Enable additional touch controls
+        if (map.touchZoomRotate) {
+            map.touchZoomRotate.enable();
+            map.touchZoomRotate.enableRotation();
+        }
+
+        // Enable better touch controls with pitch
+        if (map.dragRotate) {
+            map.dragRotate.enable();
+        }
+
+        // Make drag panning smoother
+        if (map.dragPan) {
+            map.dragPan.enable();
+        }
+
+        // Enable scroll zooming
+        if (map.scrollZoom) {
+            map.scrollZoom.enable();
+        }
+    }
+
+    // By default, all terra-draw drawing modes are enabled.
+    // you can disable some of modes in the constructor options if you want.
+    const draw = new MaplibreTerradrawControl.MaplibreTerradrawControl({
+        modes: [
+            // 'render', comment this to always show drawing tool
+            'point',
+            'linestring',
+            'polygon',
+            'rectangle',
+            'circle',
+            'freehand',
+            'angled-rectangle',
+            'sensor',
+            'sector',
+            'select',
+            'delete-selection',
+            'delete',
+            'download'
+        ],
+        open: true,
+    });
+    map.addControl(draw, 'top-left');
+
+    // Reset view button
+    document.getElementById('resetView').addEventListener('click', resetMapView);
+
+    // Add the draggable functionality
+    function makeDraggable(element, handle) {
+        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+
+        if (handle) {
+            // If handle exists, attach the mouse and touch events to it
+            handle.onmousedown = dragMouseDown;
+            handle.ontouchstart = dragTouchStart;
+            handle.style.cursor = 'grab';
+        } else {
+            // Otherwise, attach it to the element itself
+            element.onmousedown = dragMouseDown;
+            element.ontouchstart = dragTouchStart;
+        }
+
+        function dragMouseDown(e) {
+            e = e || window.event;
+            e.preventDefault();
+
+            // Get the initial cursor position
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+
+            // Change cursor style
+            if (handle) handle.style.cursor = 'grabbing';
+
+            // When mouseup occurs, stop moving
+            document.onmouseup = closeDragElement;
+
+            // Call drag function whenever the cursor moves
+            document.onmousemove = elementDrag;
+        }
+
+        function dragTouchStart(e) {
+            e = e || window.event;
+
+            // For touch events, get the first touch point
+            if (e.touches && e.touches.length) {
+                e.preventDefault(); // Prevent scrolling when dragging
+
+                // Get the initial touch position
+                pos3 = e.touches[0].clientX;
+                pos4 = e.touches[0].clientY;
+
+                // When touch ends, stop moving
+                document.ontouchend = closeTouchDragElement;
+
+                // Call drag function whenever the touch moves
+                document.ontouchmove = elementTouchDrag;
+            }
+        }
+
+        function elementDrag(e) {
+            e = e || window.event;
+            e.preventDefault();
+
+            // Calculate the new cursor position
+            pos1 = pos3 - e.clientX;
+            pos2 = pos4 - e.clientY;
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+
+            updateElementPosition();
+        }
+
+        function elementTouchDrag(e) {
+            e = e || window.event;
+
+            if (e.touches && e.touches.length) {
+                e.preventDefault(); // Prevent scrolling when dragging
+
+                // Calculate the new touch position
+                pos1 = pos3 - e.touches[0].clientX;
+                pos2 = pos4 - e.touches[0].clientY;
+                pos3 = e.touches[0].clientX;
+                pos4 = e.touches[0].clientY;
+
+                updateElementPosition();
+            }
+        }
+
+        function updateElementPosition() {
+            // Set the element's new position with smooth transition
+            element.style.transition = 'none'; // Disable transition during drag
+            element.style.top = (element.offsetTop - pos2) + "px";
+            element.style.left = (element.offsetLeft - pos1) + "px";
+
+            // Make sure panel doesn't go outside the viewport
+            const rect = element.getBoundingClientRect();
+
+            // Keep at least 20px of the element inside the viewport
+            if (rect.left < -rect.width + 20) {
+                element.style.left = (-rect.width + 20) + "px";
+            }
+
+            if (rect.top < 0) {
+                element.style.top = "0px";
+            }
+
+            if (rect.right > window.innerWidth - 20) {
+                element.style.left = (window.innerWidth - rect.width - 20) + "px";
+            }
+
+            if (rect.bottom > window.innerHeight - 20) {
+                element.style.top = (window.innerHeight - rect.height - 20) + "px";
+            }
+        }
+
+        function closeDragElement() {
+            // Stop moving when mouse button is released
+            document.onmouseup = null;
+            document.onmousemove = null;
+
+            // Re-enable transition for smooth ending
+            element.style.transition = 'transform 0.2s cubic-bezier(0.22, 1, 0.36, 1)';
+
+            // Restore cursor
+            if (handle) handle.style.cursor = 'grab';
+        }
+
+        function closeTouchDragElement() {
+            // Stop moving when touch ends
+            document.ontouchend = null;
+            document.ontouchmove = null;
+        }
+    }
+</script>
+</body>
+</html>

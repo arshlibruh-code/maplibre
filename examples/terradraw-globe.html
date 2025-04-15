@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Terra-Draw Globe Map</title>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel='stylesheet' href='../dist/maplibre-gl.css' />
+    <script src='../dist/maplibre-gl.js'></script>
+    <!-- Add MapLibre Terra-Draw -->
+    <script src="https://cdn.jsdelivr.net/npm/@watergis/maplibre-gl-terradraw@1.0.1/dist/maplibre-gl-terradraw.umd.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@watergis/maplibre-gl-terradraw@1.0.1/dist/maplibre-gl-terradraw.css" />
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background-color: #000;
+            color: white;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        #map { 
+            position: absolute; 
+            top: 0; 
+            bottom: 0; 
+            width: 100%; 
+        }
+        /* DaVinci Resolve inspired controls panel */
+        .panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 260px;
+            background-color: rgba(30, 30, 30, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(60, 60, 60, 0.5);
+            border-radius: 5px;
+            color: white;
+            padding: 10px;
+            font-size: 12px;
+            z-index: 10;
+        }
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 13px;
+            letter-spacing: 0.5px;
+        }
+        .panel-content {
+            padding: 5px 0;
+        }
+        .tool-button {
+            background-color: #333;
+            border: 1px solid #444;
+            color: #ddd;
+            border-radius: 3px;
+            padding: 6px;
+            margin: 4px 4px 4px 0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tool-button:hover {
+            background-color: #444;
+        }
+        .tool-button.active {
+            background-color: #2196F3;
+            color: white;
+        }
+        .tool-row {
+            display: flex;
+            flex-wrap: wrap;
+            margin-bottom: 5px;
+        }
+        .maplibregl-ctrl-icon {
+            filter: brightness(0) invert(1);
+        }
+    </style>
+</head>
+<body>
+    <div id='map'></div>
+    <div class="panel">
+        <div class="panel-header">
+            <div>Drawing Tools</div>
+        </div>
+        <div class="panel-content">
+            <div class="tool-row">
+                <button id="select-tool" class="tool-button active">Select</button>
+                <button id="point-tool" class="tool-button">Point</button>
+                <button id="line-tool" class="tool-button">Line</button>
+                <button id="polygon-tool" class="tool-button">Polygon</button>
+            </div>
+            <div class="tool-row">
+                <button id="rectangle-tool" class="tool-button">Rectangle</button>
+                <button id="circle-tool" class="tool-button">Circle</button>
+                <button id="delete-tool" class="tool-button">Delete</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Initialize the map with OSM tiles
+        var map = new maplibregl.Map({
+            container: 'map',
+            style: {
+                version: 8,
+                sources: {
+                    'osm-tiles': {
+                        type: 'raster',
+                        tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                        tileSize: 256,
+                        attribution: '© OpenStreetMap contributors'
+                    }
+                },
+                layers: [{
+                    id: 'osm-tiles',
+                    type: 'raster',
+                    source: 'osm-tiles',
+                    minzoom: 0,
+                    maxzoom: 19
+                }]
+            },
+            center: [0, 20],
+            zoom: 2,
+            pitch: 60,
+            bearing: 0,
+            projection: 'globe'
+        });
+        
+        // Add standard controls
+        map.addControl(new maplibregl.NavigationControl(), 'top-left');
+        map.addControl(new maplibregl.FullscreenControl(), 'top-left');
+        map.addControl(new maplibregl.ScaleControl({
+            maxWidth: 80,
+            unit: 'metric'
+        }), 'bottom-left');
+        
+        // Initialize TerraDraw
+        let terraDraw;
+        
+        map.on('load', function() {
+            // Add atmosphere effect for globe view
+            map.setFog({
+                'color': 'rgb(186, 210, 235)', 
+                'high-color': 'rgb(36, 92, 223)', 
+                'horizon-blend': 0.02
+            });
+            
+            // Initialize Terra-Draw
+            try {
+                terraDraw = new MaplibreTerradrawControl.MaplibreTerradrawControl({
+                    modes: [
+                        'point',
+                        'linestring',
+                        'polygon',
+                        'rectangle',
+                        'circle',
+                        'select',
+                        'delete'
+                    ],
+                    open: false,
+                    position: 'top-left'
+                });
+                
+                map.addControl(terraDraw);
+                
+                // Hide default Terra-Draw toolbar 
+                const terraDrawContainer = document.querySelector('.maplibre-terradraw-container');
+                if (terraDrawContainer) {
+                    terraDrawContainer.style.display = 'none';
+                }
+                
+                // Set up our custom button handlers
+                document.getElementById('select-tool').addEventListener('click', function() {
+                    setActiveMode('select');
+                });
+                
+                document.getElementById('point-tool').addEventListener('click', function() {
+                    setActiveMode('point');
+                });
+                
+                document.getElementById('line-tool').addEventListener('click', function() {
+                    setActiveMode('linestring');
+                });
+                
+                document.getElementById('polygon-tool').addEventListener('click', function() {
+                    setActiveMode('polygon');
+                });
+                
+                document.getElementById('rectangle-tool').addEventListener('click', function() {
+                    setActiveMode('rectangle');
+                });
+                
+                document.getElementById('circle-tool').addEventListener('click', function() {
+                    setActiveMode('circle');
+                });
+                
+                document.getElementById('delete-tool').addEventListener('click', function() {
+                    setActiveMode('delete');
+                });
+                
+                console.log('Terra-Draw initialized successfully');
+            } catch (error) {
+                console.error('Failed to initialize Terra-Draw:', error);
+            }
+            
+            // Invert navigation control icons to white
+            document.querySelectorAll('.maplibregl-ctrl-icon').forEach(icon => {
+                icon.style.filter = 'brightness(0) invert(1)';
+            });
+        });
+        
+        // Helper function to set active draw mode
+        function setActiveMode(mode) {
+            try {
+                // Change TerraDraw mode
+                terraDraw.changeMode(mode);
+                
+                // Update active button
+                document.querySelectorAll('.tool-button').forEach(button => {
+                    button.classList.remove('active');
+                });
+                
+                // Determine which button to activate
+                let buttonId;
+                switch(mode) {
+                    case 'select': buttonId = 'select-tool'; break;
+                    case 'point': buttonId = 'point-tool'; break;
+                    case 'linestring': buttonId = 'line-tool'; break;
+                    case 'polygon': buttonId = 'polygon-tool'; break;
+                    case 'rectangle': buttonId = 'rectangle-tool'; break;
+                    case 'circle': buttonId = 'circle-tool'; break;
+                    case 'delete': buttonId = 'delete-tool'; break;
+                }
+                
+                if (buttonId) {
+                    document.getElementById(buttonId).classList.add('active');
+                }
+                
+                console.log(`Changed mode to: ${mode}`);
+            } catch (error) {
+                console.error(`Failed to change mode to ${mode}:`, error);
+            }
+        }
+    </script>
+</body>
+</html> 

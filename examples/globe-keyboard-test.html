@@ -1,0 +1,1357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>MapLibre GL JS Globe Keyboard Test</title>
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel='stylesheet' href='../dist/maplibre-gl.css' />
+    <script src='../dist/maplibre-gl-dev.js'></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+
+    <!-- Terra Draw Integration -->
+    <script>
+        // Check if scripts are loading properly
+        window.terraDrawLoaded = false;
+        window.onload = function() {
+            console.log("Window loaded, checking Terra Draw status:", window.terraDrawLoaded);
+            if (!window.terraDrawLoaded || typeof MaplibreTerradrawControl === 'undefined') {
+                console.error("Terra Draw failed to load properly");
+            }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@watergis/maplibre-gl-terradraw@1.1.1/dist/maplibre-gl-terradraw.umd.js"
+            onload="window.terraDrawLoaded = true; console.log('Terra Draw script loaded successfully');"
+            onerror="console.error('Failed to load Terra Draw script')"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@watergis/maplibre-gl-terradraw@1.1.1/dist/maplibre-gl-terradraw.css"
+         onload="console.log('Terra Draw CSS loaded successfully')"
+         onerror="console.error('Failed to load Terra Draw CSS')"/>
+    <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+
+        /* DaVinci Style Control Panel */
+        .control-panel {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 240px;
+            background-color: rgba(22, 22, 22, 0.92);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            color: #e0e0e0;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            font-size: 11px;
+            z-index: 10;
+            overflow: hidden;
+            border: 1px solid rgba(60, 60, 60, 0.5);
+            user-select: none;
+            max-height: calc(100vh - 30px);
+            overflow-y: auto;
+            transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .control-header {
+            background-color: rgba(40, 40, 40, 0.9);
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(60, 60, 60, 0.6);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: move;
+            user-select: none;
+            touch-action: none;
+        }
+
+        .header-title-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-grow: 1;
+        }
+
+        .header-icon {
+            width: 16px;
+            height: 16px;
+            fill: #aaa;
+        }
+
+        .control-header h3 {
+            margin: 0;
+            font-size: 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            color: #bbb;
+        }
+
+        .panel-toggle {
+            font-size: 14px;
+            cursor: pointer;
+            color: #aaa;
+            transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1), color 0.3s ease;
+        }
+
+        .panel-toggle:hover {
+            color: #fff;
+        }
+
+        .control-content {
+            padding: 12px;
+            overflow: hidden;
+            transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+            max-height: 600px;
+        }
+
+        .collapsed {
+            max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        .control-group {
+            margin-bottom: 12px;
+        }
+
+        .control-group h4 {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #999;
+            margin: 0 0 8px 0;
+            font-weight: 600;
+            border-bottom: 1px solid rgba(60, 60, 60, 0.5);
+            padding-bottom: 4px;
+        }
+
+        .slider-row {
+            display: grid;
+            grid-template-columns: 30% 50% 20%;
+            align-items: center;
+            margin-bottom: 8px;
+            position: relative;
+        }
+
+        .slider-label {
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #aaa;
+        }
+
+        .slider-track {
+            position: relative;
+            width: 100%;
+            height: 4px;
+        }
+
+        .slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            background-color: rgba(60, 60, 60, 0.8);
+            border-radius: 2px;
+            outline: none;
+            position: relative;
+            margin: 0;
+            z-index: 2;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 10px;
+            height: 10px;
+            background-color: #e0e0e0;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+            position: relative;
+            z-index: 2;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+        }
+
+        .slider::-webkit-slider-thumb:hover {
+            background-color: #ffffff;
+            transform: scale(1.2);
+        }
+
+        .slider-value {
+            text-align: center;
+            font-size: 10px;
+            color: #bbb;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .reset-button {
+            width: 100%;
+            background-color: rgba(40, 40, 40, 0.9);
+            border: 1px solid rgba(70, 70, 70, 0.6);
+            color: #ddd;
+            padding: 6px 10px;
+            border-radius: 3px;
+            font-size: 9px;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+            margin-top: 8px;
+        }
+
+        .reset-button:hover {
+            background-color: rgba(50, 50, 50, 0.9);
+            color: #fff;
+        }
+
+        .keyboard-shortcuts {
+            position: absolute;
+            left: 15px;
+            bottom: 15px;
+            background-color: rgba(30, 30, 30, 0.85);
+            border-radius: 4px;
+            padding: 10px 15px;
+            color: white;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+            z-index: 5;
+            font-size: 12px;
+        }
+
+        .keyboard-shortcuts h3 {
+            margin: 0 0 10px 0;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #aaaaaa;
+        }
+
+        .keyboard-shortcuts ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .keyboard-shortcuts li {
+            margin-bottom: 6px;
+            display: flex;
+        }
+
+        .key {
+            background-color: #333;
+            color: #ddd;
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin-right: 6px;
+            font-family: monospace;
+            border: 1px solid #444;
+            min-width: 18px;
+            text-align: center;
+        }
+
+        .key-action {
+            color: #bbb;
+            flex-grow: 1;
+        }
+
+        .debug-log {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 300px;
+            height: 200px;
+            overflow-y: auto;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+
+        .debug-log div {
+            margin-bottom: 4px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding-bottom: 4px;
+        }
+
+        /* Toast styles */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(30, 30, 30, 0.9);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+
+        /* Figma-style crosshair */
+        .crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 15px;
+            height: 15px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .crosshair-h, .crosshair-v {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.8);
+        }
+
+        .crosshair-h {
+            width: 15px;
+            height: 1.5px;
+            top: 6.75px;
+            left: 0;
+        }
+
+        .crosshair-v {
+            width: 1.5px;
+            height: 15px;
+            top: 0;
+            left: 6.75px;
+        }
+
+        /* Zoom limit indicator */
+        .zoom-limit {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            font-size: 7.5px;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 1px 3px;
+            border-radius: 2px;
+            font-family: sans-serif;
+            display: none;
+            pointer-events: none;
+            z-index: 1000;
+            white-space: nowrap;
+        }
+
+        /* Location button styles */
+        .maplibregl-ctrl-geolocate {
+            background-image: url('data:image/svg+xml;charset=utf-8,%3Csvg width="29" height="29" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"%3E%3Cpath d="M10 4C9 4 9 5 9 5L9 5.1A5 5 0 0 0 5.1 9L5 9C5 9 4 9 4 10 4 11 5 11 5 11L5.1 11A5 5 0 0 0 9 14.9L9 15C9 15 9 16 10 16 11 16 11 15 11 15L11 14.9A5 5 0 0 0 14.9 11L15 11C15 11 16 11 16 10 16 9 15 9 15 9L14.9 9A5 5 0 0 0 11 5.1L11 5C11 5 11 4 10 4zM10 6.5A3.5 3.5 0 0 1 13.5 10 3.5 3.5 0 0 1 10 13.5 3.5 3.5 0 0 1 6.5 10 3.5 3.5 0 0 1 10 6.5zM10 8.3A1.8 1.8 0 0 0 8.3 10 1.8 1.8 0 0 0 10 11.8 1.8 1.8 0 0 0 11.8 10 1.8 1.8 0 0 0 10 8.3z" fill="%23333"%3E%3C/path%3E%3C/svg%3E');
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+
+        .maplibregl-ctrl-geolocate.active {
+            background-image: url('data:image/svg+xml;charset=utf-8,%3Csvg width="29" height="29" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"%3E%3Cpath d="M10 4C9 4 9 5 9 5L9 5.1A5 5 0 0 0 5.1 9L5 9C5 9 4 9 4 10 4 11 5 11 5 11L5.1 11A5 5 0 0 0 9 14.9L9 15C9 15 9 16 10 16 11 16 11 15 11 15L11 14.9A5 5 0 0 0 14.9 11L15 11C15 11 16 11 16 10 16 9 15 9 15 9L14.9 9A5 5 0 0 0 11 5.1L11 5C11 5 11 4 10 4zM10 6.5A3.5 3.5 0 0 1 13.5 10 3.5 3.5 0 0 1 10 13.5 3.5 3.5 0 0 1 6.5 10 3.5 3.5 0 0 1 10 6.5zM10 8.3A1.8 1.8 0 0 0 8.3 10 1.8 1.8 0 0 0 10 11.8 1.8 1.8 0 0 0 11.8 10 1.8 1.8 0 0 0 10 8.3z" fill="%231da1f2"%3E%3C/path%3E%3C/svg%3E');
+        }
+
+        /* Custom location marker styles */
+        .custom-location-marker {
+            width: 15px;
+            height: 15px;
+            background-color: #1da1f2;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 0 3px rgba(0, 0, 0, 0.4);
+            animation: pulse 1.5s infinite;
+            cursor: pointer;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(29, 161, 242, 0.7);
+                transform: scale(1);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(29, 161, 242, 0);
+                transform: scale(1.1);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(29, 161, 242, 0);
+                transform: scale(1);
+            }
+        }
+
+        /* Terra Draw specific styles */
+        .maplibregl-terradraw-control-container {
+            display: block !important;
+            z-index: 100 !important;
+            position: absolute !important;
+            left: 10px !important;
+            top: 50px !important; /* Position below the navigation control */
+        }
+
+        .maplibregl-terradraw-control {
+            background: rgba(35, 35, 35, 0.9) !important;
+            border-radius: 4px !important;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3) !important;
+        }
+
+        .maplibregl-terradraw-control button {
+            background-color: transparent !important;
+            border: none !important;
+            cursor: pointer !important;
+            padding: 8px !important;
+            margin: 2px !important;
+            border-radius: 4px !important;
+            transition: background-color 0.2s !important;
+        }
+
+        .maplibregl-terradraw-control button:hover {
+            background-color: rgba(255, 255, 255, 0.2) !important;
+        }
+
+        .maplibregl-terradraw-control button.active {
+            background-color: rgba(29, 161, 242, 0.5) !important;
+        }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<div class="crosshair" id="crosshair">
+    <div class="crosshair-h"></div>
+    <div class="crosshair-v"></div>
+    <div class="zoom-limit" id="zoomLimit">zoom-lmt</div>
+</div>
+
+<div id="controls" class="control-panel">
+    <div class="control-header">
+        <div class="header-title-container">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="header-icon"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
+            <h3>GLOBE NAVIGATION</h3>
+        </div>
+        <span class="panel-toggle">&#9662;</span>
+    </div>
+    <div class="control-content">
+        <div class="control-group">
+            <h4>NAVIGATION SPEED</h4>
+
+            <div class="slider-row">
+                <div class="slider-label">PAN</div>
+                <div class="slider-track">
+                    <input type="range" min="1" max="10" value="5" class="slider" id="panSpeed">
+                </div>
+                <div class="slider-value" id="panSpeedValue">5.0</div>
+            </div>
+
+            <div class="slider-row">
+                <div class="slider-label">ROTATE</div>
+                <div class="slider-track">
+                    <input type="range" min="1" max="10" value="5" class="slider" id="rotationSpeed">
+                </div>
+                <div class="slider-value" id="rotationSpeedValue">5.0</div>
+            </div>
+
+            <div class="slider-row">
+                <div class="slider-label">PITCH</div>
+                <div class="slider-track">
+                    <input type="range" min="1" max="10" value="5" class="slider" id="pitchSpeed">
+                </div>
+                <div class="slider-value" id="pitchSpeedValue">5.0</div>
+            </div>
+
+            <div class="slider-row">
+                <div class="slider-label">ZOOM</div>
+                <div class="slider-track">
+                    <input type="range" min="1" max="10" value="5" class="slider" id="zoomSpeed">
+                </div>
+                <div class="slider-value" id="zoomSpeedValue">5.0</div>
+            </div>
+        </div>
+
+        <div class="control-row">
+            <button id="screenshotBtn" class="reset-button">TAKE SCREENSHOT</button>
+        </div>
+        <button class="reset-button" id="reset-params">RESET TO DEFAULTS</button>
+    </div>
+</div>
+
+<!-- Keyboard Shortcuts -->
+<div class="keyboard-shortcuts">
+    <h3>Globe Keyboard Controls</h3>
+    <ul>
+        <li><span class="key">W</span><span class="key">S</span><span class="key">A</span><span class="key">D</span> <span class="key-action">Pan Globe</span></li>
+        <li><span class="key">Q</span><span class="key">E</span> <span class="key-action">Rotate Globe</span></li>
+        <li><span class="key">R</span><span class="key">F</span> <span class="key-action">Adjust Pitch</span></li>
+        <li><span class="key">Z</span><span class="key">X</span> <span class="key-action">Zoom In/Out</span></li>
+        <li><span class="key">Space</span> <span class="key-action">Reset Globe View</span></li>
+    </ul>
+</div>
+
+<div class="debug-log" id="debugLog"></div>
+
+<!-- Add toast element -->
+<div id="toast" class="toast"></div>
+
+<script>
+    // Function to log to debug console
+    function log(message) {
+        console.log(message);
+        const debugLog = document.getElementById('debugLog');
+        if (debugLog) {
+            const logEntry = document.createElement('div');
+            logEntry.textContent = message;
+            debugLog.insertBefore(logEntry, debugLog.firstChild);
+
+            // Limit number of entries
+            if (debugLog.children.length > 20) {
+                debugLog.removeChild(debugLog.lastChild);
+            }
+        }
+    }
+
+    // Initialize map
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: {
+            version: 8,
+            sources: {
+                'satellite': {
+                    type: 'raster',
+                    tiles: [
+                        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                    ],
+                    tileSize: 256,
+                    attribution: 'Imagery © Esri'
+                },
+                'stars': {
+                    type: 'image',
+                    url: 'https://raw.githubusercontent.com/maplibre/maplibre-gl-js/main/docs/examples/assets/stars.png',
+                    coordinates: [
+                        [-180, 90],
+                        [180, 90],
+                        [180, -90],
+                        [-180, -90]
+                    ]
+                }
+            },
+            layers: [
+                {
+                    id: 'stars',
+                    type: 'background',
+                    paint: {
+                        'background-color': '#000000'
+                    }
+                },
+                {
+                    id: 'stars-image',
+                    type: 'raster',
+                    source: 'stars',
+                    opacity: 0.8
+                },
+                {
+                    id: 'satellite',
+                    type: 'raster',
+                    source: 'satellite',
+                    minzoom: 0,
+                    maxzoom: 22
+                }
+            ]
+        },
+        center: [77.5946, 12.9716],
+        zoom: 3,
+        pitch: 0,
+        bearing: 0,
+        renderWorldCopies: true,
+        antialias: true,
+        keyboard: true,
+        projection: 'globe'
+    });
+
+    // Add atmosphere effect
+    map.on('load', () => {
+        map.setFog({
+            'horizon-blend': 0.02,
+            'star-intensity': 5,
+            'color': '#000000',
+            'high-color': '#000000',
+            'space-color': '#000000',
+            'horizon-blend-start': 0.5
+        });
+    });
+
+    // Add navigation controls
+    map.addControl(new maplibregl.NavigationControl(), 'top-left');
+
+    // Add globe control
+    map.addControl(new maplibregl.GlobeControl(), 'top-left');
+
+    // Initialize after map loads
+    map.on('load', () => {
+        log('Map loaded, initializing...');
+
+        // Setup screenshot button
+        document.getElementById('screenshotBtn').addEventListener('click', () => {
+            log('Screenshot button clicked');
+            takeScreenshot();
+        });
+
+        // Setup keyboard controls
+        setupKeyboardControls();
+
+        // Setup movement controls
+        setupMovementControls();
+
+        // Setup control panel functionality
+        setupControlPanel();
+
+        // Add Terra Draw Control
+        try {
+            log('Initializing Terra Draw...');
+            const draw = new MaplibreTerradrawControl.MaplibreTerradrawControl({
+                modes: [
+                    'point',
+                    'linestring',
+                    'polygon',
+                    'rectangle',
+                    'circle',
+                    'freehand',
+                    'angled-rectangle',
+                    'sector',
+                    'select',
+                    'delete-selection',
+                    'delete',
+                    'download'
+                ],
+                open: true,
+                position: 'top-left',
+                style: {
+                    buttonSize: '36px', // Make buttons more visible
+                    backgroundColor: 'rgba(35, 35, 35, 0.9)',
+                    color: '#fff'
+                },
+                defaultMode: 'select' // Start with select mode active
+            });
+            map.addControl(draw, 'top-left');
+            log('Terra Draw initialized successfully');
+
+            // Try to ensure the Terra Draw UI is visible with multiple attempts
+            let attempts = 0;
+            const maxAttempts = 5;
+
+            function checkAndFixTerraDrawUI() {
+                attempts++;
+                const drawContainer = document.querySelector('.maplibregl-terradraw-control-container');
+                if (drawContainer) {
+                    // Force display
+                    drawContainer.style.display = 'block';
+                    drawContainer.style.zIndex = '100';
+
+                    // Ensure it's in the correct position
+                    drawContainer.style.position = 'absolute';
+                    drawContainer.style.left = '10px';
+                    drawContainer.style.top = '50px';
+
+                    log(`Terra Draw UI visibility enforced (attempt ${attempts})`);
+                    showToast('Terra Draw tools enabled');
+                } else {
+                    log(`Terra Draw container not found in DOM (attempt ${attempts})`);
+                    if (attempts < maxAttempts) {
+                        // Try again after a delay
+                        setTimeout(checkAndFixTerraDrawUI, 500);
+                    } else {
+                        log('Failed to find Terra Draw container after maximum attempts, creating fallback UI');
+                        createFallbackTerraDrawUI();
+                    }
+                }
+            }
+
+            // Fallback function to manually create Terra Draw UI
+            function createFallbackTerraDrawUI() {
+                // Create a container for Terra Draw tools
+                const container = document.createElement('div');
+                container.className = 'maplibregl-terradraw-control-container';
+                container.style.cssText = 'display: block; z-index: 100; position: absolute; left: 10px; top: 50px; background: rgba(35, 35, 35, 0.9); border-radius: 4px; padding: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);';
+
+                // Add some dummy drawing tools with alert messages
+                const tools = [
+                    { name: 'point', icon: '⚪', tooltip: 'Add Point' },
+                    { name: 'linestring', icon: '⎯', tooltip: 'Add Line' },
+                    { name: 'polygon', icon: '⬡', tooltip: 'Add Polygon' },
+                    { name: 'rectangle', icon: '⬜', tooltip: 'Add Rectangle' }
+                ];
+
+                tools.forEach(tool => {
+                    const button = document.createElement('button');
+                    button.innerHTML = tool.icon;
+                    button.title = tool.tooltip;
+                    button.style.cssText = 'background: transparent; border: none; color: white; padding: 8px; margin: 2px; cursor: pointer; border-radius: 4px;';
+                    button.addEventListener('mouseover', () => {
+                        button.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                    });
+                    button.addEventListener('mouseout', () => {
+                        button.style.backgroundColor = 'transparent';
+                    });
+                    button.addEventListener('click', () => {
+                        log(`Fallback ${tool.name} tool clicked`);
+                        showToast(`Please try refreshing the page for full drawing capabilities`);
+                    });
+                    container.appendChild(button);
+                });
+
+                // Add to map
+                document.body.appendChild(container);
+                showToast('Fallback drawing tools created. For full functionality, please refresh the page.');
+            }
+
+            // Start checking after the map is fully loaded
+            setTimeout(checkAndFixTerraDrawUI, 1000);
+
+        } catch (error) {
+            log(`Error initializing Terra Draw: ${error.message}`);
+            showToast('Error: Could not initialize drawing tools');
+        }
+
+        // Initial reset
+        resetMapView();
+
+        log('Map ready - Terra Draw enabled');
+    });
+
+    // Create a simple location control
+    class GeolocateControl {
+        onAdd(map) {
+            this._map = map;
+            this._container = document.createElement('div');
+            this._container.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+
+            this._button = document.createElement('button');
+            this._button.className = 'maplibregl-ctrl-icon maplibregl-ctrl-geolocate';
+            this._button.type = 'button';
+            this._button.title = 'Show your location';
+
+            this._button.addEventListener('click', () => {
+                this._button.classList.add('active');
+                showToast('Finding your location...');
+
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            const {longitude, latitude} = position.coords;
+
+                            // Move to the user's location
+                            map.flyTo({
+                                center: [longitude, latitude],
+                                zoom: 15,
+                                duration: 1000
+                            });
+
+                            // Simple marker for location
+                            if (locationDot) {
+                                locationDot.remove();
+                            }
+
+                            locationDot = document.createElement('div');
+                            locationDot.style.cssText = `
+                                position: absolute;
+                                width: 20px;
+                                height: 20px;
+                                background-color: #1da1f2;
+                                border: 3px solid white;
+                                border-radius: 50%;
+                                box-shadow: 0 0 5px rgba(0,0,0,0.5);
+                                z-index: 1;
+                            `;
+
+                            map.getContainer().appendChild(locationDot);
+
+                            function updateDotPosition() {
+                                const point = map.project([longitude, latitude]);
+                                locationDot.style.transform = `translate(${point.x - 10}px, ${point.y - 10}px)`;
+                            }
+
+                            updateDotPosition();
+                            map.on('move', updateDotPosition);
+                            map.on('zoom', updateDotPosition);
+
+                            showToast(`Found your location`);
+                            this._button.classList.remove('active');
+                        },
+                        (error) => {
+                            handleLocationError(error);
+                            this._button.classList.remove('active');
+                            showToast('Could not get your location');
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 10000, // Longer timeout
+                            maximumAge: 30000 // Allow some caching
+                        }
+                    );
+                } else {
+                    showToast('Geolocation is not supported by your browser');
+                    this._button.classList.remove('active');
+                }
+            });
+
+            this._container.appendChild(this._button);
+            return this._container;
+        }
+
+        onRemove() {
+            this._container.parentNode.removeChild(this._container);
+            this._map = undefined;
+        }
+    }
+
+    // Add the custom location control
+    map.addControl(new GeolocateControl(), 'top-left');
+
+    let locationDot = null;
+
+    function updateLocation(position) {
+        const {longitude, latitude} = position.coords;
+        log(`Received coordinates: ${latitude}, ${longitude}`);
+
+        try {
+            // Remove existing location dot if any
+            if (locationDot) {
+                locationDot.remove();
+            }
+
+            // Create location dot element
+            locationDot = document.createElement('div');
+            locationDot.style.cssText = `
+                position: absolute;
+                width: 20px;
+                height: 20px;
+                background-color: #1da1f2;
+                border: 3px solid white;
+                border-radius: 50%;
+                box-shadow: 0 0 5px rgba(0,0,0,0.5);
+                pointer-events: none;
+                z-index: 1;
+            `;
+
+            // Add to map container
+            map.getContainer().appendChild(locationDot);
+
+            // Function to update dot position
+            function updateDotPosition() {
+                const point = map.project([longitude, latitude]);
+                locationDot.style.transform = `translate(${point.x - 10}px, ${point.y - 10}px)`;
+            }
+
+            // Update position initially and on map events
+            updateDotPosition();
+            map.on('move', updateDotPosition);
+            map.on('zoom', updateDotPosition);
+
+            // Fly to location with more pronounced animation
+            map.flyTo({
+                center: [longitude, latitude],
+                zoom: 14,
+                pitch: 45,
+                bearing: 0,
+                duration: 800,  // Faster animation
+                essential: true // This animation is essential for the function
+            });
+
+            // Show confirmation toast
+            showToast(`📍 Found your location`);
+
+            log(`Location dot created and positioned at: ${latitude}, ${longitude}`);
+
+        } catch (error) {
+            log(`Error handling location: ${error.message}`);
+        }
+    }
+
+    function handleLocationError(error) {
+        log(`Location error: ${error.message}`);
+    }
+
+    // Add toast function
+    function showToast(message, duration = 3000) {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.classList.add('show');
+
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, duration);
+    }
+
+    // Update screenshot functions to use toast
+    function takeScreenshot() {
+        log('Starting screenshot capture...');
+
+        // First check if html2canvas is loaded
+        if (!window.html2canvas) {
+            log('Error: html2canvas not loaded');
+            showToast('❌ Screenshot failed: html2canvas not loaded');
+            return;
+        }
+
+        // Check if clipboard API is available
+        if (!navigator.clipboard || !navigator.clipboard.write) {
+            log('Error: Clipboard API not supported');
+            showToast('❌ Screenshot failed: Clipboard not supported');
+            return;
+        }
+
+        try {
+            const mapContainer = map.getContainer();
+            log('Capturing map container...');
+
+            html2canvas(mapContainer, {
+                useCORS: true,
+                allowTaint: true,
+                logging: true,
+                onclone: function(clonedDoc) {
+                    log('Document cloned for screenshot');
+                }
+            }).then(canvas => {
+                log('Canvas created, converting to blob...');
+                return new Promise((resolve, reject) => {
+                    canvas.toBlob(blob => {
+                        if (!blob) {
+                            reject(new Error('Failed to create blob'));
+                            return;
+                        }
+                        resolve(blob);
+                    }, 'image/png');
+                });
+            }).then(blob => {
+                log('Blob created, copying to clipboard...');
+                const item = new ClipboardItem({ 'image/png': blob });
+                return navigator.clipboard.write([item]);
+            }).then(() => {
+                log('Screenshot successfully copied to clipboard!');
+                showToast('📸 Screenshot copied to clipboard!');
+            }).catch(err => {
+                log(`Screenshot error: ${err.message}`);
+                showToast('❌ Screenshot failed: ' + err.message);
+            });
+        } catch (error) {
+            log(`Screenshot error: ${error.message}`);
+            showToast('❌ Screenshot error: ' + error.message);
+        }
+    }
+
+    // Animation settings
+    let animationSettings = {
+        duration: 300,
+        easing: easeOutQuint
+    };
+
+    // Easing function
+    function easeOutQuint(t) {
+        return 1 - Math.pow(1 - t, 5);
+    }
+
+    // Movement parameters
+    const movementParams = {
+        panSpeed: 5.0,
+        rotationSpeed: 5.0,
+        pitchSpeed: 5.0,
+        zoomSpeed: 5.0
+    };
+
+    // Setup movement control listeners
+    function setupMovementControls() {
+        const controls = ['pan', 'rotation', 'pitch', 'zoom'];
+
+        controls.forEach(control => {
+            const slider = document.getElementById(`${control}Speed`);
+            const value = document.getElementById(`${control}SpeedValue`);
+
+            slider.addEventListener('input', (e) => {
+                const newValue = parseFloat(e.target.value);
+                value.value = newValue;
+                movementParams[`${control}Speed`] = newValue;
+                log(`${control} speed set to ${newValue}`);
+            });
+
+            value.addEventListener('change', (e) => {
+                const newValue = parseFloat(e.target.value);
+                slider.value = newValue;
+                movementParams[`${control}Speed`] = newValue;
+                log(`${control} speed set to ${newValue}`);
+            });
+        });
+
+        // Duration control
+        const durationSlider = document.getElementById('duration');
+        const durationValue = document.getElementById('durationValue');
+
+        durationSlider.addEventListener('input', (e) => {
+            const newValue = parseInt(e.target.value);
+            durationValue.value = newValue;
+            animationSettings.duration = newValue;
+            log(`Animation duration set to ${newValue}ms`);
+        });
+
+        durationValue.addEventListener('change', (e) => {
+            const newValue = parseInt(e.target.value);
+            durationSlider.value = newValue;
+            animationSettings.duration = newValue;
+            log(`Animation duration set to ${newValue}ms`);
+        });
+    }
+
+    // Setup keyboard controls
+    function setupKeyboardControls() {
+        // Make sure keyboard handler is enabled
+        map.keyboard.enable();
+        map.keyboard.enableRotation();
+
+        // Track active keys
+        const activeKeys = new Set();
+
+        // Keep track of animation state
+        let isAnimating = false;
+        let lastFrameTime = 0;
+        let animationFrameId = null;
+
+        // Move the map based on active keys
+        function moveMap(deltaTime) {
+            if (activeKeys.size === 0) {
+                isAnimating = false;
+                return;
+            }
+
+            // Calculate movement amounts based on time
+            const timeScale = deltaTime / 16.7; // Normalize for 60fps
+
+            // Scale movement speeds based on slider values
+            const panMultiplier = movementParams.panSpeed / 5.0;
+            const rotateMultiplier = movementParams.rotationSpeed / 5.0;
+            const pitchMultiplier = movementParams.pitchSpeed / 5.0;
+            const zoomMultiplier = movementParams.zoomSpeed / 5.0;
+
+            // Base movement amounts per frame (scaled by time delta)
+            const panBase = 1.0 * timeScale * panMultiplier;
+            const rotateBase = 0.5 * timeScale * rotateMultiplier;
+            const pitchBase = 0.5 * timeScale * pitchMultiplier;
+            const zoomBase = 0.01 * timeScale * zoomMultiplier;
+
+            // Stop any previous animations
+            map.stop();
+
+            // Get current position values
+            const currentCenter = map.getCenter();
+            const currentZoom = map.getZoom();
+            const currentBearing = map.getBearing();
+            const currentPitch = map.getPitch();
+
+            // Calculate new position based on active keys
+            let newCenter = currentCenter;
+            let newZoom = currentZoom;
+            let newBearing = currentBearing;
+            let newPitch = currentPitch;
+
+            // Handle panning (WASD)
+            if (activeKeys.has('w')) {
+                // Pan north
+                const offset = map.project(currentCenter)._add([0, -panBase]);
+                newCenter = map.unproject(offset);
+            }
+            if (activeKeys.has('s')) {
+                // Pan south
+                const offset = map.project(currentCenter)._add([0, panBase]);
+                newCenter = map.unproject(offset);
+            }
+            if (activeKeys.has('a')) {
+                // Pan west
+                const offset = map.project(currentCenter)._add([-panBase, 0]);
+                newCenter = map.unproject(offset);
+            }
+            if (activeKeys.has('d')) {
+                // Pan east
+                const offset = map.project(currentCenter)._add([panBase, 0]);
+                newCenter = map.unproject(offset);
+            }
+
+            // Handle rotation (Q/E)
+            if (activeKeys.has('q')) {
+                newBearing = currentBearing - rotateBase;
+            }
+            if (activeKeys.has('e')) {
+                newBearing = currentBearing + rotateBase;
+            }
+
+            // Handle pitch (R/F)
+            if (activeKeys.has('r')) {
+                newPitch = Math.min(currentPitch + pitchBase, 85);
+            }
+            if (activeKeys.has('f')) {
+                newPitch = Math.max(currentPitch - pitchBase, 0);
+            }
+
+            // Handle zoom (Z/X)
+            if (activeKeys.has('z')) {
+                newZoom = currentZoom + zoomBase;
+                // Check if we're approaching max zoom and show the indicator
+                if (newZoom >= MAX_ZOOM - 0.2) {
+                    showZoomLimit(true);
+                    newZoom = Math.min(newZoom, MAX_ZOOM);
+                } else {
+                    showZoomLimit(false);
+                }
+            }
+            if (activeKeys.has('x')) {
+                newZoom = currentZoom - zoomBase;
+                showZoomLimit(false);
+            }
+
+            // Apply all changes with a single easing animation
+            map.easeTo({
+                center: newCenter,
+                zoom: newZoom,
+                bearing: newBearing,
+                pitch: newPitch,
+                duration: animationSettings.duration,
+                easing: animationSettings.easing
+            });
+        }
+
+        // Animation loop
+        function animationLoop(timestamp) {
+            if (!isAnimating) return;
+
+            const deltaTime = timestamp - lastFrameTime || 16.7;
+            lastFrameTime = timestamp;
+
+            moveMap(deltaTime);
+
+            animationFrameId = requestAnimationFrame(animationLoop);
+        }
+
+        // Start animation if not already running
+        function startAnimation() {
+            if (!isAnimating) {
+                isAnimating = true;
+                lastFrameTime = performance.now();
+                animationFrameId = requestAnimationFrame(animationLoop);
+            }
+        }
+
+        // Stop animation
+        function stopAnimation() {
+            isAnimating = false;
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+        }
+
+        // Keydown handler
+        window.addEventListener('keydown', function(e) {
+            const key = e.key.toLowerCase();
+            if (['w', 'a', 's', 'd', 'q', 'e', 'r', 'f', 'z', 'x'].includes(key)) {
+                e.preventDefault(); // Prevent default behaviors like page scrolling
+
+                if (!activeKeys.has(key)) {
+                    activeKeys.add(key);
+                    log(`Key pressed: ${key} (duration: ${animationSettings.duration}ms)`);
+
+                    // Start the animation loop
+                    startAnimation();
+                }
+            }
+
+            // Space key to reset view
+            if (e.key === ' ') {
+                e.preventDefault();
+                resetMapView();
+            }
+        });
+
+        // Keyup handler
+        window.addEventListener('keyup', function(e) {
+            const key = e.key.toLowerCase();
+            if (['w', 'a', 's', 'd', 'q', 'e', 'r', 'f', 'z', 'x'].includes(key)) {
+                activeKeys.delete(key);
+                log(`Key released: ${key}`);
+
+                // Stop animation if no keys are active
+                if (activeKeys.size === 0) {
+                    stopAnimation();
+                }
+            }
+        });
+
+        // Reset everything when window loses focus
+        window.addEventListener('blur', function() {
+            activeKeys.clear();
+            stopAnimation();
+        });
+
+        log(`Keyboard controls initialized with easeOutQuint easing`);
+    }
+
+    // Reset map view
+    function resetMapView() {
+        log(`Resetting view with easeOutQuint easing, duration: 1500ms`);
+        showZoomLimit(false);
+
+        map.flyTo({
+            center: [77.5946, 12.9716], // Bangalore coordinates
+            zoom: 3, // Closer zoom to see the city
+            pitch: 0,
+            bearing: 0,
+            duration: 1500,
+            easing: animationSettings.easing
+        });
+    }
+
+    // Define max zoom constants
+    const MAX_ZOOM = 16;
+    const SAFE_MAX_ZOOM = MAX_ZOOM - 0.1;
+
+    // Get DOM elements for zoom limit
+    const zoomLimitEl = document.getElementById('zoomLimit');
+
+    // Show/hide zoom limit indicator
+    function showZoomLimit(show) {
+        zoomLimitEl.style.display = show ? 'block' : 'none';
+    }
+
+    // Additional zoom handling for max zoom limits
+    map.on('zoomstart', () => {
+        // Hide the zoom limit indicator when starting a zoom action
+        showZoomLimit(false);
+    });
+
+    map.on('zoom', () => {
+        const currentZoom = map.getZoom();
+        if (currentZoom >= SAFE_MAX_ZOOM) {
+            // Immediately set zoom back to safe level
+            map.setZoom(SAFE_MAX_ZOOM);
+            // Show zoom limit indicator
+            showZoomLimit(true);
+        }
+    });
+
+    // Setup control panel functionality
+    function setupControlPanel() {
+        const controlPanel = document.getElementById('controls');
+        const panelHeader = controlPanel.querySelector('.control-header');
+        const panelToggle = panelHeader.querySelector('.panel-toggle');
+        const panelContent = controlPanel.querySelector('.control-content');
+
+        // Add sliders event listeners
+        connectSlidersToValues();
+
+        // Reset params button
+        document.getElementById('reset-params').addEventListener('click', () => {
+            // Reset slider values to defaults
+            document.getElementById('panSpeed').value = defaultParams.panSpeed;
+            document.getElementById('rotationSpeed').value = defaultParams.rotationSpeed;
+            document.getElementById('pitchSpeed').value = defaultParams.pitchSpeed;
+            document.getElementById('zoomSpeed').value = defaultParams.zoomSpeed;
+
+            // Update the display values
+            document.getElementById('panSpeedValue').textContent = defaultParams.panSpeed.toFixed(1);
+            document.getElementById('rotationSpeedValue').textContent = defaultParams.rotationSpeed.toFixed(1);
+            document.getElementById('pitchSpeedValue').textContent = defaultParams.pitchSpeed.toFixed(1);
+            document.getElementById('zoomSpeedValue').textContent = defaultParams.zoomSpeed.toFixed(1);
+
+            // Update movement params
+            movementParams.panSpeed = defaultParams.panSpeed;
+            movementParams.rotationSpeed = defaultParams.rotationSpeed;
+            movementParams.pitchSpeed = defaultParams.pitchSpeed;
+            movementParams.zoomSpeed = defaultParams.zoomSpeed;
+
+            log('Reset parameters to defaults');
+        });
+
+        // Make panel collapsible
+        panelToggle.addEventListener('click', () => {
+            panelContent.classList.toggle('collapsed');
+            panelToggle.style.transform = panelContent.classList.contains('collapsed') ? 'rotate(180deg)' : 'rotate(0deg)';
+        });
+
+        // Make panel draggable
+        makeDraggable(controlPanel, panelHeader);
+    }
+
+    // Connect sliders to their display values
+    function connectSlidersToValues() {
+        const sliders = {
+            'panSpeed': document.getElementById('panSpeedValue'),
+            'rotationSpeed': document.getElementById('rotationSpeedValue'),
+            'pitchSpeed': document.getElementById('pitchSpeedValue'),
+            'zoomSpeed': document.getElementById('zoomSpeedValue')
+        };
+
+        Object.keys(sliders).forEach(id => {
+            const slider = document.getElementById(id);
+            const display = sliders[id];
+
+            slider.addEventListener('input', (e) => {
+                const value = parseFloat(e.target.value);
+                display.textContent = value.toFixed(1);
+                movementParams[id] = value;
+            });
+        });
+    }
+
+    // Make an element draggable
+    function makeDraggable(element, handle) {
+        let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+
+        handle.onmousedown = dragMouseDown;
+
+        function dragMouseDown(e) {
+            e = e || window.event;
+            e.preventDefault();
+
+            // Get mouse position
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+
+            document.onmouseup = closeDragElement;
+            document.onmousemove = elementDrag;
+        }
+
+        function elementDrag(e) {
+            e = e || window.event;
+            e.preventDefault();
+
+            // Calculate new position
+            pos1 = pos3 - e.clientX;
+            pos2 = pos4 - e.clientY;
+            pos3 = e.clientX;
+            pos4 = e.clientY;
+
+            // Set new position
+            element.style.top = (element.offsetTop - pos2) + "px";
+            element.style.left = (element.offsetLeft - pos1) + "px";
+
+            // Keep within viewport
+            const rect = element.getBoundingClientRect();
+            if (rect.left < 0) element.style.left = "0px";
+            if (rect.top < 0) element.style.top = "0px";
+            if (rect.right > window.innerWidth) element.style.left = (window.innerWidth - rect.width) + "px";
+            if (rect.bottom > window.innerHeight) element.style.top = (window.innerHeight - rect.height) + "px";
+        }
+
+        function closeDragElement() {
+            document.onmouseup = null;
+            document.onmousemove = null;
+        }
+    }
+
+    // Default values for movement parameters
+    const defaultParams = {
+        panSpeed: 5.0,
+        rotationSpeed: 5.0,
+        pitchSpeed: 5.0,
+        zoomSpeed: 5.0
+    };
+</script>
+</body>
+</html>
